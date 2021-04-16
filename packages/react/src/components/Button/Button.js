@@ -13,6 +13,7 @@ import { ButtonKinds } from '../../prop-types/types';
 import deprecate from '../../prop-types/deprecate';
 import { composeEventHandlers } from '../../tools/events';
 import { keys, matches } from '../../internal/keyboard';
+import { useId } from '../../internal/useId';
 import toggleClass from '../../tools/toggleClass';
 
 const { prefix } = settings;
@@ -30,10 +31,12 @@ const Button = React.forwardRef(function Button(
     tabIndex,
     type,
     renderIcon: ButtonImageElement,
+    dangerDescription,
     iconDescription,
     hasIconOnly,
     tooltipPosition,
     tooltipAlignment,
+    onClick,
     onBlur,
     onFocus,
     onMouseEnter,
@@ -95,6 +98,14 @@ const Button = React.forwardRef(function Button(
     }
   };
 
+  const handleClick = (evt) => {
+    // Prevent clicks on the tooltip from triggering the button click event
+    if (evt.target === tooltipRef.current) {
+      evt.preventDefault();
+      return;
+    }
+  };
+
   useEffect(() => {
     const handleEscKeyDown = (event) => {
       if (matches(event, [keys.Escape])) {
@@ -139,23 +150,42 @@ const Button = React.forwardRef(function Button(
     />
   );
 
+  const dangerButtonVariants = ['danger', 'danger--tertiary', 'danger--ghost'];
+
   let component = 'button';
+  const assistiveId = useId('danger-description');
   let otherProps = {
     disabled,
     type,
+    'aria-describedby': dangerButtonVariants.includes(kind)
+      ? assistiveId
+      : null,
     'aria-pressed': hasIconOnly && kind === 'ghost' ? isSelected : null,
   };
   const anchorProps = {
     href,
   };
-  const assistiveText = hasIconOnly ? (
-    <div
-      ref={tooltipRef}
-      onMouseEnter={handleMouseEnter}
-      className={`${prefix}--assistive-text`}>
-      {iconDescription}
-    </div>
-  ) : null;
+
+  let assistiveText;
+  if (hasIconOnly) {
+    assistiveText = (
+      <div
+        ref={tooltipRef}
+        onMouseEnter={handleMouseEnter}
+        className={`${prefix}--assistive-text`}>
+        {iconDescription}
+      </div>
+    );
+  } else if (dangerButtonVariants.includes(kind)) {
+    assistiveText = (
+      <span id={assistiveId} className={`${prefix}--visually-hidden`}>
+        {dangerDescription}
+      </span>
+    );
+  } else {
+    assistiveText = null;
+  }
+
   if (as) {
     component = as;
     otherProps = {
@@ -173,6 +203,7 @@ const Button = React.forwardRef(function Button(
       onMouseLeave: composeEventHandlers([onMouseLeave, handleMouseLeave]),
       onFocus: composeEventHandlers([onFocus, handleFocus]),
       onBlur: composeEventHandlers([onBlur, handleBlur]),
+      onClick: composeEventHandlers([handleClick, onClick]),
       ...other,
       ...commonProps,
       ...otherProps,
@@ -204,6 +235,11 @@ Button.propTypes = {
    * Specify an optional className to be added to your Button
    */
   className: PropTypes.string,
+
+  /**
+   * Specify the message read by screen readers for the danger button variant
+   */
+  dangerDescription: PropTypes.string,
 
   /**
    * Specify whether the Button should be disabled, or not
@@ -248,6 +284,12 @@ Button.propTypes = {
    * loses focus
    */
   onBlur: PropTypes.func,
+
+  /**
+   * Provide an optional function to be called when the button element
+   * is clicked
+   */
+  onClick: PropTypes.func,
 
   /**
    * Provide an optional function to be called when the button element
@@ -322,6 +364,7 @@ Button.defaultProps = {
   disabled: false,
   kind: 'primary',
   size: 'default',
+  dangerDescription: 'danger',
   tooltipAlignment: 'center',
   tooltipPosition: 'top',
 };
